@@ -1,0 +1,118 @@
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+"
+  pull_request:
+    paths:
+      - lock.yaml
+      - compat.yaml
+      - scripts/**
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            vma_arch: x86_64
+          - arch: arm64
+            vma_arch: aarch64
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read FreeBSD release from lock.yaml
+        id: lock
+        run: |
+          fb=$(awk '/^  release:/ { gsub(/.*release:[[:space:]]*"?/, ""); gsub(/".*/, ""); print; exit }' lock.yaml)
+          echo "freebsd=${fb}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore build cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            .cache/cargo
+            .cache/ccache
+            .cache/src
+            .cache/target
+          key: build-${{ hashFiles('lock.yaml') }}-${{ matrix.arch }}
+          restore-keys: |
+            build-${{ hashFiles('lock.yaml') }}-${{ matrix.arch }}-
+            build-
+
+      - name: Build on FreeBSD ${{ steps.lock.outputs.freebsd }} ${{ matrix.arch }}
+        uses: vmactions/freebsd-vm@v1
+        env:
+          GITHUB_ACTIONS: true
+          TARGET_ARCH: ${{ matrix.arch }}
+        with:
+          release: ${{ steps.lock.outputs.freebsd }}
+          arch: ${{ matrix.vma_arch == 'x86_64' && '' || matrix.vma_arch }}
+          usesh: true
+          copyback: true
+          prepare: |
+            pkg update -f
+          run: |
+            freebsd-version
+            uname -m
+            command -v ccache >/dev/null && ccache -V || true
+            sh scripts/build.sh
+            command -v ccache >/dev/null && ccache -s || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: curl-http3-${{ matrix.arch }}
+          path: |
+            curl-http3-*.tgz
+            curl-http3-*.tgz.sha256
+          retention-days: 90
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download amd64 artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: curl-http3-amd64
+          path: dist
+
+      - name: Download arm64 artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: curl-http3-arm64
+          path: dist
+
+      - name: Build SHA256SUMS and release notes
+        run: |
+          cd dist
+          sha256sum curl-http3-*.tgz > ../SHA256SUMS
+          cd ..
+          chmod +x scripts/render-release-notes.sh
+          TAG="${GITHUB_REF_NAME}" sh scripts/render-release-notes.sh "$TAG" > RELEASE.md
+          cat SHA256SUMS
+          cat RELEASE.md
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          body_path: RELEASE.md
+          files: |
+            dist/curl-http3-*.tgz
+            SHA256SUMS
+          generate_release_notes: false

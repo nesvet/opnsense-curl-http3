@@ -1,0 +1,17 @@
+opnsense: "26.1"
+target:
+  os: freebsd
+  release: "14.3"
+  archs: [amd64, arm64]
+curl:
+  repo: https://github.com/curl/curl.git
+  tag: curl-8_21_0
+  version: "8.21.0"
+quiche:
+  repo: https://github.com/cloudflare/quiche.git
+  tag: "0.29.1"
+install:
+  prefix: /opt/curl-http3
+  bin: curl-http3
+  wrapper: /usr/local/bin/curl-http3
+verified: 2026-07-03

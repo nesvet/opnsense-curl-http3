@@ -1,0 +1,5 @@
+# OPNsense major.minor → FreeBSD base for CI (vmactions release:)
+# Add a row when a new OPNsense stable line ships (see release notes).
+lines:
+  "26.1":
+    freebsd: "14.3"

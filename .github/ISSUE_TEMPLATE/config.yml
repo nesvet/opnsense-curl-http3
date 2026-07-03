@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Releases
+    url: https://github.com/nesvet/opnsense-curl-http3/releases
+    about: Pre-built tarballs and SHA256SUMS
+  - name: Security
+    url: https://github.com/nesvet/opnsense-curl-http3/blob/main/SECURITY.md
+    about: Report vulnerabilities
+  - name: Patreon
+    url: https://patreon.com/nesvet
+    about: Support development

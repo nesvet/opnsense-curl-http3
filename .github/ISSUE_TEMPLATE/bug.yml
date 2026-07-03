@@ -1,0 +1,35 @@
+name: Bug report
+description: Build, install, or runtime failure
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Run on the firewall:
+        `opnsense-version`, `freebsd-version`, `uname -m`, `curl-http3 --version`
+        Paste full output below. Do **not** attach binaries.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment output
+      description: opnsense-version, freebsd-version, uname -m, curl-http3 --version
+    validations:
+      required: true
+  - type: input
+    id: install_method
+    attributes:
+      label: Install method
+      placeholder: install-remote.sh / manual tarball / local build
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+    validations:
+      required: true

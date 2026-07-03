@@ -1,0 +1,80 @@
+name: opnsense-watch
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - compat.yaml
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check for new OPNsense release
+        id: check
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          chmod +x scripts/check-opnsense-release.sh
+          sh scripts/check-opnsense-release.sh
+
+      - name: Open issue — add compat.yaml
+        if: steps.check.outputs.action == 'issue'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="OPNsense ${{ steps.check.outputs.new_version }} — add compat.yaml"
+          BODY="OPNsense **${{ steps.check.outputs.new_version }}** is released.
+
+          Add a row to \`compat.yaml\` with the FreeBSD base from the [release notes](${{ steps.check.outputs.release_url }}).
+
+          Example:
+
+          \`\`\`yaml
+          \"${{ steps.check.outputs.new_version }}\":\n    freebsd: \"14.x\"
+          \`\`\`
+
+          Push to \`main\` — this workflow re-runs and opens a lock bump PR automatically."
+          EXISTING=$(gh issue list --repo "${{ github.repository }}" --search "$TITLE" --state open --json number --jq '.[0].number' || true)
+          if [ -z "$EXISTING" ] || [ "$EXISTING" = "null" ]; then
+            gh issue create --repo "${{ github.repository }}" --title "$TITLE" --body "$BODY"
+          fi
+
+      - name: Bump lock and open PR
+        if: steps.check.outputs.action == 'pr'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.check.outputs.new_version }}"
+          FREEBSD="${{ steps.check.outputs.freebsd }}"
+          BRANCH="opnsense/${VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          chmod +x scripts/bump-lock.sh
+          sh scripts/bump-lock.sh "$VERSION" "$FREEBSD"
+          git add lock.yaml
+          git commit -m "Bump lock.yaml for OPNsense ${VERSION} (FreeBSD ${FREEBSD})"
+          git push -u origin "$BRANCH"
+          gh pr create --repo "${{ github.repository }}" \
+            --head "$BRANCH" \
+            --title "OPNsense ${VERSION} — bump lock.yaml" \
+            --body "## Summary
+          Automated bump for OPNsense **${VERSION}** (FreeBSD **${FREEBSD}**).
+
+          ## Checklist
+          - [ ] FreeBSD version in \`compat.yaml\` matches [OPNsense release](${{ steps.check.outputs.release_url }})
+          - [ ] CI green on this PR
+
+          Merging triggers \`tag-release\` → tag \`${VERSION}\` → GitHub Release build."

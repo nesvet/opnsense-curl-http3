@@ -1,0 +1,24 @@
+name: Install help
+description: Install or smoke test failed
+title: "[Install]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Include output of `sh install-remote.sh --dry-run` and any install/smoke errors.
+  - type: textarea
+    id: dry_run
+    attributes:
+      label: install-remote.sh --dry-run output
+  - type: textarea
+    id: error
+    attributes:
+      label: Error output
+    validations:
+      required: true
+  - type: input
+    id: tag
+    attributes:
+      label: Release tag tried
+      placeholder: "26.1"

@@ -1,0 +1,45 @@
+name: tag-release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - lock.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Read opnsense version from lock.yaml
+        id: lock
+        run: |
+          ver=$(awk '/^opnsense:/ { gsub(/.*opnsense:[[:space:]]*"?/, ""); gsub(/".*/, ""); print; exit }' lock.yaml)
+          echo "version=${ver}" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.lock.outputs.version }}"
+          if git rev-parse "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "tag ${TAG} already exists — skip"
+            exit 0
+          fi
+          if gh api "repos/${{ github.repository }}/git/ref/tags/${TAG}" >/dev/null 2>&1; then
+            echo "tag ${TAG} exists on remote — skip"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "pushed tag ${TAG}"
